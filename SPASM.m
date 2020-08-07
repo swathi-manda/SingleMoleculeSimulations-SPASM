@@ -17,7 +17,8 @@ classdef SPASM < handle
 % 
 %   See also properties, methods.
 %
-% A tutorial can be found in the user guide, which is located at ***.
+% A tutorial can be found in the user guide, which is located at:
+% https://github.com/GreenbergLab/SPASM
 %
 % This program uses the Signal Processing Toolbox to smooth the covariance with a
 % Savitzky-Golay filter. The Optimization Toolbox is used to fit exponential curves to the
@@ -848,6 +849,11 @@ classdef SPASM < handle
             % MATLAB.
             %
             % See also changepoint.
+            %
+            % Created with help from:
+            % Killick R, Haynes K and Eckley IA (2016). changepoint: An R
+            % package for changepoint analysis. R package version 2.2.2,
+            % https://CRAN.R-project.org/package=changepoint.
             
             if nargin == 1
                 onlyLr = false;
@@ -909,6 +915,11 @@ classdef SPASM < handle
             %   gives the relative likelihood that point i is the true changepoint. This
             %   method calculates the likelihood for every single point, regardless of the
             %   length of data.
+            %
+            % Created with help from:
+            % Killick R, Haynes K and Eckley IA (2016). changepoint: An R
+            % package for changepoint analysis. R package version 2.2.2,
+            % https://CRAN.R-project.org/package=changepoint.
             
             data = data(:);
             N = length(data);
@@ -982,6 +993,8 @@ classdef SPASM < handle
                 'MenuBar', 'none',...
                 'Toolbar', 'none',...
                 'Resize', 'on',...
+                'Name', 'SPASM',...
+                'NumberTitle', 'off',...
                 'WindowButtonMotionFcn', @app.defaultMotion,...
                 'WindowButtonDownFcn', @app.defaultClick,...
                 'WindowKeyPressFcn', @app.nullKeyPressCallback,...
