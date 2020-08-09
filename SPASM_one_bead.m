@@ -25,7 +25,7 @@ classdef SPASM_one_bead < handle
 % ensemble averages. If either toolbox is not installed, the program will run without the
 % corresponding functionality.
 %
-% This program should be compatible with MATLAB releases R2017b through at least R2019a.
+% This program should be compatible with MATLAB releases R2017b through at least R2020a.
 
     % These are observable - a function is called when their values change.
     properties (SetObservable, AbortSet)
@@ -5144,6 +5144,7 @@ classdef SPASM_one_bead < handle
             app.updateCurrentTask('Determining the peaks and minimum.');
             edges = app.analyze.varHist.varHistPlot.BinEdges;
             values = app.analyze.varHist.varHistPlot.Values;
+            app.autop1 = []; app.autop2 = []; app.automin = [];
             [app.autop1, app.autop2, app.automin] = app.calculatePeaksMin(edges, values);
             if ~isempty(app.misc.listenerError)
                 rethrow(app.misc.listenerError)
@@ -5394,9 +5395,6 @@ classdef SPASM_one_bead < handle
             % accordingly.
             
             try
-                oldVarWindow = app.controls.windows.varwindow;
-                oldVarSmooth = app.controls.windows.varsmooth;
-
                 app.controls.windows.panel.Visible = 'off'; % Hide interactive axes.
                 app.misc.fig.WindowButtonMotionFcn = app.misc.storeMotionCallback; % Reset the figure motion callback.
                 app.misc.fig.WindowButtonDownFcn = app.misc.storeClickCallback; % Reset the figure button down callback.
@@ -5409,11 +5407,8 @@ classdef SPASM_one_bead < handle
                 app.controls.windows.varwindowEdit.String = int2str(app.controls.windows.varwindow);
                 app.controls.windows.varsmoothEdit.String = int2str(app.controls.windows.varsmooth);
 
-                % Update plots, if needed.
-                if app.controls.windows.varwindow ~= oldVarWindow ||...
-                        app.controls.windows.varsmooth ~= oldVarSmooth
-                    app.autoGenerateVar;
-                end
+                % Update plots.
+                app.autoGenerateVar;
                 
                 app.restore(store);
             catch ME
@@ -8527,9 +8522,17 @@ classdef SPASM_one_bead < handle
                         testOneMatch = @(a, s) assert(nnz(a)==1, ['There should be exactly '...
                             'one column containing the phrase ''%s'''], s);
                         
-                        firstCol = readtable([path name], 'Sheet', i, 'Range', 'A:A', 'ReadVariableNames', 0);
-                        headerRows = find(contains(firstCol{:,:}, 'start (# pts)'))-1;
-                        secondCol = table2cell(readtable([path name], 'Sheet', i, 'Range', ['B1:B' num2str(headerRows)], 'ReadVariableNames', 0));
+                        if verLessThan('matlab', '9.7')
+                            firstCol = readtable([path name], 'Sheet', i, 'Range', 'A:A', 'ReadVariableNames', 0);
+                            headerRows = find(contains(firstCol{:,:}, 'start (# pts)'))-1;
+                            secondCol = table2cell(readtable([path name], 'Sheet', i, 'Range', ['B1:B' num2str(headerRows)], 'ReadVariableNames', 0));
+                        else
+                            opts = spreadsheetImportOptions('DataRange', 'A:A');
+                            firstCol = readtable([path name], opts, 'Sheet', i, 'ReadVariableNames', 0);
+                            headerRows = find(contains(firstCol{:,:}, 'start (# pts)'))-1;
+                            opts = spreadsheetImportOptions('DataRange', ['B1:B' num2str(headerRows)]);
+                            secondCol = table2cell(readtable([path name], opts, 'Sheet', i, 'ReadVariableNames', 0));
+                        end
                         
                         % For each sheet, read the sampling frequency, number of events, and
                         % whether the bead should be flipped.
@@ -9664,11 +9667,20 @@ classdef SPASM_one_bead < handle
             
             % Update column height and widths.
             hgt = min([T.Extent(4) mH]);
+            if hgt == mH
+                % Table was too big, so slider was added.
+                addSlider = true;
+            else
+                addSlider = false;
+            end
+            pUnits = T.Parent.Units;
+            T.Parent.Units = 'pixels';
+            hgt = hgt + 1/T.Parent.Position(4);
+            T.Parent.Units = pUnits;
             T.Position([2 4]) = [T.Position(2)+T.Position(4)-hgt hgt];
             origUnits = T.Units;
             T.Units = 'pixels';
-            if hgt == mH
-                % Table was too big, so slider was added.
+            if addSlider
                 wdt = T.Position(3) - 16;
             else
                 wdt = T.Position(3);
