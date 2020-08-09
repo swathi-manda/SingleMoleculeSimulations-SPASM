@@ -156,6 +156,12 @@ classdef SPASM < handle
                 catch
                 end
                 delete(app);
+                
+                % If user does not indicate that they want to save the app, clear it to
+                % avoid any output.
+                if nargout == 0
+                    clear app
+                end
             end
         end
         
@@ -1771,8 +1777,8 @@ classdef SPASM < handle
                 'YAxisLocation', 'right');
             xlabel(app.controls.windows.windowsAxes, 'Moving average filter window');
             ylabel(app.controls.windows.windowsAxes, '2nd order filter window');
-            app.controls.windows.covwindow = 175;
-            app.controls.windows.covsmooth = 73;
+            app.controls.windows.covwindow = 175; % In the paper, this is referred to as w_c.
+            app.controls.windows.covsmooth = 73; % And this as w_s.
             app.controls.windows.defcovwindow = app.controls.windows.covwindow;
             app.controls.windows.defcovsmooth = app.controls.windows.covsmooth;
             app.controls.windows.covwindowTxt = uicontrol(app.controls.panel,...
