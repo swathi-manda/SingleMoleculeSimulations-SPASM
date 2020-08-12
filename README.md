@@ -4,3 +4,5 @@ This repository contains **SPASM** (Software for Precise Analysis of Single Mole
 **SPASM** is a MATLAB-based computational tool for generating ensemble averages of single-molecule data.
 
 You can download **SPASM**, **SPASM_one_bead**, compiled versions of either program (for Windows or macOS), our program for generating simulated data, the user guide, and the data referenced in the paper [here](https://github.com/GreenbergLab/SPASM/releases/tag/v1.0).
+
+For the standalone versions of the program: To install on Windows, run the executable. To install on Mac, unzip the file and move it to the Applications folder.
