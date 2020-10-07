@@ -1210,6 +1210,13 @@ classdef SPASM < handle
                 'MarkerEdgeColor', app.misc.colors.misc,...
                 'Visible', 'off',...
                 'HitTest', 'off');
+            app.analyze.misc.realPlot = plot(app.analyze.misc.miscAxes, 0, 0,...
+                'Color', app.misc.colors.simLines,...
+                'MarkerSize', 3,...
+                'MarkerFaceColor', app.misc.colors.simLines,...
+                'MarkerEdgeColor', app.misc.colors.simLines,...
+                'Visible', 'off',...
+                'HitTest', 'off');
             app.analyze.misc.miscFitPlot = plot(app.analyze.misc.miscAxes, 0, 0,...
                 'Color', app.misc.colors.miscFit,...
                 'LineWidth', 1.5,...
@@ -3723,6 +3730,124 @@ classdef SPASM < handle
         end
     end
     
+    % Private methods for simulated input
+    methods (Access = private)
+        
+        function events = getRealEvents(app)
+            % Returns the real events within the simulated data.
+            
+            events = app.misc.realEvents;
+        end
+        
+        function dur = getRealDur(app)
+            % Returns the durations of the real events.
+            
+            events = app.getRealEvents;
+            if ~isempty(events)
+                dur = events(:,2) - events(:,1);
+            else
+                dur = [];
+            end
+        end
+        
+        function sep = getRealSep(app)
+            % Returns the number of points between consecutive events for the real events.
+            
+            events = app.getRealEvents;
+            if ~isempty(events)
+                sep = [events(:,1); length(app.getTrimBeads)] - [1; events(:,2)];
+            else
+                sep = [];
+            end
+        end
+        
+        function [pos, steps] = getRealPosNStepSizes(app, whichBead)
+            % Returns the average position of a bead just before and just after binding and
+            % unbinding, as well as the estimated step sizes, for the real events.
+            
+            events = app.getRealEvents;
+            [A, B] = app.getActiveBeads;
+            if app.flipped
+                A = -A;
+                B = -B;
+            end
+            if strcmp(whichBead, 'B')
+                bead = B;
+            else
+                bead = A;
+            end
+            N = size(events, 1);
+            M = numel(bead);
+            posBefB = zeros(N, 1);
+            posAftB = zeros(N, 1);
+            posBefU = zeros(N, 1);
+            posAftU = zeros(N, 1);
+            events = [0 0; events; M, M];
+            for i = 2:N+1
+                posBefB(i-1) = mean(bead(max([events(i-1,2)+1, events(i,1)-app.data.fs/100]):events(i,1)));
+                posAftB(i-1) = mean(bead(events(i,1)+1:min([events(i,1)+1+app.data.fs/100, events(i,2)])));
+                posBefU(i-1) = mean(bead(max([events(i,2)-app.data.fs/100, events(i,1)+1]):events(i,2)));
+                posAftU(i-1) = mean(bead(events(i,2)+1:min([events(i,2)+1+app.data.fs/100, events(i+1,1)])));
+            end
+            step1 = posAftB - posBefB;
+            totalstep = posBefU - posAftU;
+            step2 = totalstep - step1;
+            pos = [posBefB...
+                posAftB...
+                posBefU...
+                posAftU];
+            steps = [step1...
+                step2...
+                totalstep];
+        end
+        
+        function plotRealEvents(app, events)
+            % Plots real events on the main axes and covariance axes in load panel of tab 1.
+            
+            app.updateCurrentTask('Plotting the real events.');
+            
+            if ~app.misc.simInput
+                return
+            end
+            
+            % Hide all previous real event patches.
+            delete(app.misc.simPatches);
+            app.misc.simPatches = gobjects(0);
+            
+            % Plot new real event patches.
+            limyC = ylim(app.load.cov.covAxes);
+            limyM = ylim(app.load.main.mainAxes);
+            liminitC = limyC; liminitM = limyM;
+            limyC(1) = limyC(1) - 0.1*(limyC(2) - limyC(1)); % Each patch will span from 10% below...
+            limyC(2) = limyC(2) + 0.1*(limyC(2) - limyC(1)); % ...to 10% above current ylim.
+            limyM(1) = limyM(1) - 0.1*(limyM(2) - limyM(1)); % Repeat for main axes.
+            limyM(2) = limyM(2) + 0.1*(limyM(2) - limyM(1));
+            fileTime = app.data.time;
+            for nevent = 1:size(events, 1)
+                % For each event...
+                event = events(nevent,:);
+                app.misc.simPatches(end+1) = patch(app.load.cov.covAxes,...
+                    'XData', [fileTime(event(1)+1) fileTime(event(2)) fileTime(event(2)) fileTime(event(1)+1)],...
+                    'YData', [limyC(1) limyC(1) limyC(2) limyC(2)],...
+                    'FaceColor', app.misc.colors.simPatches,...
+                    'FaceAlpha', 0.3,...
+                    'EdgeColor', 'none',...
+                    'HitTest', 'off'); % ...plot a corresponding patch.
+                app.misc.simPatches(end+1) = patch(app.load.main.mainAxes,...
+                    'XData', [fileTime(event(1)+1) fileTime(event(2)) fileTime(event(2)) fileTime(event(1)+1)],...
+                    'YData', [limyM(1) limyM(1) limyM(2) limyM(2)],...
+                    'FaceColor', app.misc.colors.simPatches,...
+                    'FaceAlpha', 0.3,...
+                    'EdgeColor', 'none',...
+                    'HitTest', 'off'); % ...plot a corresponding patch.
+            end
+            ylim(app.load.cov.covAxes, liminitC);
+            ylim(app.load.main.mainAxes, liminitM);
+            
+            drawnow;
+        end
+    end
+    
     % Private tab 1 methods
     methods (Access = private)
         
@@ -3799,6 +3924,7 @@ classdef SPASM < handle
             backup.analyze.misc.miscPlot = storePlot(app.analyze.misc.miscPlot);
             backup.analyze.misc.miscPlot.Marker = app.analyze.misc.miscPlot.Marker;
             backup.analyze.misc.miscPlot.LineStyle = app.analyze.misc.miscPlot.LineStyle;
+            backup.analyze.misc.realPlot = storePlot(app.analyze.misc.realPlot);
             backup.analyze.misc.miscFitPlot = storePlot(app.analyze.misc.miscFitPlot);
             backup.analyze.misc.miscLabel = storeText(app.analyze.misc.miscLabel);
             backup.analyze.misc.data = app.analyze.misc.data;
@@ -4180,6 +4306,7 @@ classdef SPASM < handle
                 restorePlot(app.analyze.misc.miscPlot, backup.analyze.misc.miscPlot);
                 app.analyze.misc.miscPlot.Marker = backup.analyze.misc.miscPlot.Marker;
                 app.analyze.misc.miscPlot.LineStyle = backup.analyze.misc.miscPlot.LineStyle;
+                restorePlot(app.analyze.misc.realPlot, backup.analyze.misc.realPlot);
                 restorePlot(app.analyze.misc.miscFitPlot, backup.analyze.misc.miscFitPlot);
                 restoreText(app.analyze.misc.miscLabel, backup.analyze.misc.miscLabel);
                 app.analyze.misc.data = backup.analyze.misc.data;
@@ -6233,53 +6360,6 @@ classdef SPASM < handle
             end
         end
         
-        function plotRealEvents(app, events)
-            % Plots real events on the main axes and covariance axes in load panel of tab
-            % 1.
-            
-            app.updateCurrentTask('Plotting the real events.');
-            
-            if ~app.misc.simInput
-                return
-            end
-            
-            % Hide all previous real event patches.
-            delete(app.misc.simPatches);
-            app.misc.simPatches = gobjects(0);
-            
-            % Plot new real event patches.
-            limyC = ylim(app.load.cov.covAxes);
-            limyM = ylim(app.load.main.mainAxes);
-            liminitC = limyC; liminitM = limyM;
-            limyC(1) = limyC(1) - 0.1*(limyC(2) - limyC(1)); % Each patch will span from 10% below...
-            limyC(2) = limyC(2) + 0.1*(limyC(2) - limyC(1)); % ...to 10% above current ylim.
-            limyM(1) = limyM(1) - 0.1*(limyM(2) - limyM(1)); % Repeat for main axes.
-            limyM(2) = limyM(2) + 0.1*(limyM(2) - limyM(1));
-            fileTime = app.data.time;
-            for nevent = 1:size(events, 1)
-                % For each event...
-                event = events(nevent,:);
-                app.misc.simPatches(end+1) = patch(app.load.cov.covAxes,...
-                    'XData', [fileTime(event(1)+1) fileTime(event(2)) fileTime(event(2)) fileTime(event(1)+1)],...
-                    'YData', [limyC(1) limyC(1) limyC(2) limyC(2)],...
-                    'FaceColor', app.misc.colors.simPatches,...
-                    'FaceAlpha', 0.3,...
-                    'EdgeColor', 'none',...
-                    'HitTest', 'off'); % ...plot a corresponding patch.
-                app.misc.simPatches(end+1) = patch(app.load.main.mainAxes,...
-                    'XData', [fileTime(event(1)+1) fileTime(event(2)) fileTime(event(2)) fileTime(event(1)+1)],...
-                    'YData', [limyM(1) limyM(1) limyM(2) limyM(2)],...
-                    'FaceColor', app.misc.colors.simPatches,...
-                    'FaceAlpha', 0.3,...
-                    'EdgeColor', 'none',...
-                    'HitTest', 'off'); % ...plot a corresponding patch.
-            end
-            ylim(app.load.cov.covAxes, liminitC);
-            ylim(app.load.main.mainAxes, liminitM);
-            
-            drawnow;
-        end
-        
         function plotPrelimEvents(app, events)
             % Plots events on the covariance axes in load panel of tab 1.
             
@@ -6699,17 +6779,24 @@ classdef SPASM < handle
                 case 'Step 1 Size'
                     [~, stepA] = app.getPosNStepSizes('A');
                     [~, stepB] = app.getPosNStepSizes('B');
+                    if app.misc.simInput
+                        [~, stepAr] = app.getRealPosNStepSizes('A');
+                        [~, stepBr] = app.getRealPosNStepSizes('B');
+                    end
                     if isequal(app.misc.active.allEvents.whichBeads, app.controls.beadABtn)
                         % Just bead A.
                         Y = stepA(:,1);
+                        if app.misc.simInput, Yr = stepAr(:,1); end
                         xlab = 'step 1 size (nm), estimated by bead A';
                     elseif isequal(app.misc.active.allEvents.whichBeads, app.controls.beadBBtn)
                         % Just bead B.
                         Y = stepB(:,1);
+                        if app.misc.simInput, Yr = stepBr(:,1); end
                         xlab = 'step 1 size (nm), estimated by bead B';
                     else
                         % Both.
                         Y = (stepA(:,1)+stepB(:,1))/2;
+                        if app.misc.simInput, Yr = (stepAr(:,1)+stepBr(:,1))/2; end
                         xlab = 'step 1 size (nm), estimated by average of both beads';
                     end
                     type = 'normcdf';
@@ -6717,17 +6804,24 @@ classdef SPASM < handle
                 case 'Step 2 Size'
                     [~, stepA] = app.getPosNStepSizes('A');
                     [~, stepB] = app.getPosNStepSizes('B');
+                    if app.misc.simInput
+                        [~, stepAr] = app.getRealPosNStepSizes('A');
+                        [~, stepBr] = app.getRealPosNStepSizes('B');
+                    end
                     if isequal(app.misc.active.allEvents.whichBeads, app.controls.beadABtn)
                         % Just bead A.
                         Y = stepA(:,2);
+                        if app.misc.simInput, Yr = stepAr(:,2); end
                         xlab = 'step 2 size (nm), estimated by bead A';
                     elseif isequal(app.misc.active.allEvents.whichBeads, app.controls.beadBBtn)
                         % Just bead B.
                         Y = stepB(:,2);
+                        if app.misc.simInput, Yr = stepBr(:,2); end
                         xlab = 'step 2 size (nm), estimated by bead B';
                     else
                         % Both.
                         Y = (stepA(:,2)+stepB(:,2))/2;
+                        if app.misc.simInput, Yr = (stepAr(:,2)+stepBr(:,2))/2; end
                         xlab = 'step 2 size (nm), estimated by avg of both beads';
                     end
                     type = 'normcdf';
@@ -6735,17 +6829,24 @@ classdef SPASM < handle
                 case 'Total Step Size'
                     [~, stepA] = app.getPosNStepSizes('A');
                     [~, stepB] = app.getPosNStepSizes('B');
+                    if app.misc.simInput
+                        [~, stepAr] = app.getRealPosNStepSizes('A');
+                        [~, stepBr] = app.getRealPosNStepSizes('B');
+                    end
                     if isequal(app.misc.active.allEvents.whichBeads, app.controls.beadABtn)
                         % Just bead A.
                         Y = stepA(:,3);
+                        if app.misc.simInput, Yr = stepAr(:,3); end
                         xlab = 'total step size (nm), estimated by bead A';
                     elseif isequal(app.misc.active.allEvents.whichBeads, app.controls.beadBBtn)
                         % Just bead B.
                         Y = stepB(:,3);
+                        if app.misc.simInput, Yr = stepBr(:,3); end
                         xlab = 'total step size (nm), estimated by bead B';
                     else
                         % Both.
                         Y = (stepA(:,3)+stepB(:,3))/2;
+                        if app.misc.simInput, Yr = (stepAr(:,3)+stepBr(:,3))/2; end
                         xlab = 'total step size (nm), estimated by avg of both beads';
                     end
                     type = 'normcdf';
@@ -6765,6 +6866,7 @@ classdef SPASM < handle
                     app.updateCurrentTask(['Plotting the event durations over the force on bead ' bead '.']);
                 otherwise
                     Y = app.getActiveDur/app.data.fs;
+                    if app.misc.simInput, Yr = app.getRealDur/app.data.fs; end
                     type = 'expcdf';
                     xlab = 'event duration (s)';
                     app.updateCurrentTask('Plotting the distribution of event durations.');
@@ -6787,6 +6889,10 @@ classdef SPASM < handle
                     X = linspace(min(Y), max(Y), 1000); % Range of D for the cumulative distribution.
                     fitX = linspace(0, max(Y), 1000); % Range of D for the fit.
                     Y = (sum(Y<=X,1)+n) / (length(Y)+n); % Cumulative distribution function.
+                    if app.misc.simInput
+                        Xr = linspace(min(Yr), max(Yr), 1000);
+                        Yr = sum(Yr<=Xr,1) / length(Yr);
+                    end
                     fitY = fit(fitX);
                     s = ['k = ' sprintf('%.3g', p) ' s^{-1}'];
                     pos = [0.5 0.5];
@@ -6804,6 +6910,10 @@ classdef SPASM < handle
                     X = linspace(min(Y), max(Y), 1000); % Range of D for the cumulative distribution.
                     fitX = p(1)+p(2)*-sqrt(2)*erfcinv(2*linspace(0.001,0.999,1000)); % Range of D for the fit.
                     Y = sum(Y<=X,1) / length(Y); % Cumulative distribution function.
+                    if app.misc.simInput
+                        Xr = linspace(min(Yr), max(Yr), 1000);
+                        Yr = sum(Yr<=Xr,1) / length(Yr);
+                    end
                     fitY = fit(fitX);
                     s = sprintf('\\mu = %.3g nm\\newline\\sigma = %.3g nm', [p(1) p(2)]);
                     pos = [0.25, 5];
@@ -6812,6 +6922,14 @@ classdef SPASM < handle
                     fitY = [];
                     s = '';
                     pos = [0, 0];
+            end
+            
+            if app.misc.simInput && (strcmp(type, 'normcdf') || strcmp(type, 'expcdf'))
+                % If user is analyzing simulated data and looking at the event durations or step
+                % sizes, show the actual distribution in yellow.
+                app.changeData(app.analyze.misc.realPlot, Xr, Yr);
+            else
+                app.changeData(app.analyze.misc.realPlot, 0, 0);
             end
             
             % Update plots.
